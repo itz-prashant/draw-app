@@ -4,13 +4,14 @@ import jwt from "jsonwebtoken"
 
 
 export function middleware(req: Request, res: Response, next:NextFunction){
-    const token  = req.header("authorization") ?? "";
+    const token  = req.header("Authorization") ?? "";
 
     const decode = jwt.verify(token, JWT_SECRET)
             // @ts-ignore
     if(decode.userId){
         // @ts-ignore
         req.userId = decode.userId
+        next()
     }else{
         res.status(403).json({
             message: "Unauthorized"

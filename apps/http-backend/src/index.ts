@@ -6,6 +6,7 @@ import { CreateRoomSchema, CreateUserSchema, SignInSchema } from "@repo/common/t
 import {prismaClient} from "@repo/db/client"
 
 const app = express()
+app.use(express.json())
 
 app.post("/signup", async (req, res)=>{
     const parsedData = CreateUserSchema.safeParse(req.body)
@@ -16,7 +17,7 @@ app.post("/signup", async (req, res)=>{
         return
     }
     try {
-        await prismaClient.user.create({
+        const user = await prismaClient.user.create({
         data:{
             email: parsedData.data?.email,
             password: parsedData.data?.password,
@@ -24,16 +25,16 @@ app.post("/signup", async (req, res)=>{
         }
     })
     res.json({
-        userId: "123"
+        userId: user.id
     })
     } catch (error) {
         res.status(411).json({
-            message: "User already exist with this username"
+            message: "User already exist with this email"
         })
     }
 })
 
-app.post("/signin", (req, res)=>{
+app.post("/signin", async (req, res)=>{
 
     const parsedData = SignInSchema.safeParse(req.body)
     if(!parsedData.success){
@@ -43,9 +44,20 @@ app.post("/signin", (req, res)=>{
         return
     }
 
-    const userId = 1;
+    const user = await prismaClient.user.findFirst({
+        where:{
+            email: parsedData.data?.email,
+            password: parsedData.data?.password
+        }
+    })
+    if(!user){
+        res.status(403).json({
+            message: "Not authorized"
+        })
+        return
+    }
     const token  = jwt.sign({
-        userId
+        userId: user.id
     }, JWT_SECRET)
 
     res.json({
@@ -53,17 +65,31 @@ app.post("/signin", (req, res)=>{
     })
 })
 
-app.post("/room",middleware, (req, res)=>{
-    const data = CreateRoomSchema.safeParse(req.body)
-    if(!data.success){
+app.post("/room",middleware, async (req, res)=>{
+    const parsedData = CreateRoomSchema.safeParse(req.body)
+    if(!parsedData.success){
         return res.json({
             message: "Incorrect inputs"
         })
         return
     }
-    res.json({
-       roomId: 123
+    // @ts-ignore
+    const userId = req?.userId
+   try {
+     const room  = await prismaClient.room.create({
+        data:{
+            slug: parsedData.data.name,
+            adminId: userId
+        }
     })
+    res.json({
+       roomId: room.id
+    })
+   } catch (error) {
+    res.json({
+       message: "Room alredy created with this name"
+    })
+   }
 })
 
 app.listen(3001)
